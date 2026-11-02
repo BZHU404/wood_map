@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>木谱 · 木材速查｜为写手与画手准备的 43 种木材</title>
+<meta name="description" content="43 种木材的色泽、硬度、密度、气味与用途速查。为原创角色写手与画手准备的木材资料库，附创作提示与常见误用。">
+<meta name="theme-color" content="#F7F2E9">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23211C17'/%3E%3Cpath d='M7 10h18M7 16h18M7 22h18' stroke='%23F7F2E9' stroke-width='1.6'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="wrap topbar-in">
+    <a class="brand" href="#top" aria-label="木谱 · 回到顶部">
+      <span class="brand-seal" aria-hidden="true">木</span>
+      <span class="brand-name">木谱</span>
+    </a>
+    <nav class="topnav" aria-label="站点导航">
+      <button id="random-btn" class="nav-btn" type="button">
+        <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+          <path d="M12 3l1.7 5.2L19 10l-5.3 1.8L12 17l-1.7-5.2L5 10l5.3-1.8z"/>
+        </svg>
+        随机灵感
+      </button>
+      <a class="nav-btn" href="#about">数据说明</a>
+    </nav>
+  </div>
+</header>
+
+<main id="top">
+  <section class="hero wrap">
+    <p class="eyebrow">Wood Atlas · 木材速查</p>
+    <h1>木谱</h1>
+    <p class="lede"><span data-wood-count>43</span> 种木材的色泽、硬度、气味与脾气。<br>为角色挑一块木头，也为自己少查一次资料。</p>
+
+    <div class="search">
+      <svg class="search-icon" viewBox="0 0 24 24" width="17" height="17" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
+        <circle cx="11" cy="11" r="6.4"/><path d="M15.7 15.7L20 20"/>
+      </svg>
+      <input id="search" type="search" placeholder="搜索木材、用途或颜色" autocomplete="off" spellcheck="false" aria-label="搜索木材">
+      <kbd>/</kbd>
+    </div>
+    <div class="search-hints">
+      <span>试试</span>
+      <button type="button" data-q="乌木">乌木</button>
+      <button type="button" data-q="琴">琴</button>
+      <button type="button" data-q="深褐">深褐</button>
+      <button type="button" data-q="雕刻">雕刻</button>
+    </div>
+  </section>
+
+  <div class="colorband" id="colorband" aria-hidden="true"></div>
+
+  <div class="layout wrap">
+    <aside class="filters" id="filters" aria-label="筛选条件">
+      <div class="filters-head">
+        <h2>筛选</h2>
+        <button id="clear-filters" class="text-btn" type="button" hidden>清除</button>
+      </div>
+      <div id="filters-body"></div>
+    </aside>
+
+    <section class="results">
+      <div class="results-bar">
+        <p class="count"><b id="result-count">0</b> <span class="slash">/</span> <span id="result-total">0</span> 种木材</p>
+        <button id="filter-toggle" class="filter-toggle" type="button" aria-expanded="false" aria-controls="filters">
+          筛选 <span id="filter-count" class="filter-count" hidden></span>
+        </button>
+      </div>
+
+      <div id="grid" class="grid" aria-busy="true"></div>
+
+      <div id="empty" class="empty" hidden>
+        <h3>没有找到匹配的木材</h3>
+        <p>试试减少筛选条件，或换一个关键词。</p>
+        <button id="clear-empty" class="text-btn" type="button">清除全部筛选</button>
+      </div>
+    </section>
+  </div>
+</main>
+
+<footer class="footer" id="about">
+  <div class="wrap footer-in">
+    <div>
+      <h3>关于数据</h3>
+      <p>硬度为詹卡硬度（Janka）参考值，单位牛顿；密度为气干密度，单位 g/cm³。数值随产地、含水率与生长条件浮动，页面标注「按密度与手感」的条目没有公认詹卡值，仅供创作参考，不作为采购依据。</p>
+    </div>
+    <div>
+      <h3>关于图像</h3>
+      <p>刨面图由程序依据每种木材的色泽与纹理特征生成，是示意而非实拍；它能保证颜色与纹理方向大致对应，但不能替代实物照片。若你有可商用的实拍图，可直接替换。</p>
+    </div>
+  </div>
+  <div class="wrap footer-bottom">
+    <span>木谱 · 为写手与画手做的木材速查</span>
+    <span><span data-wood-count>43</span> 种 · 纯静态 · 无外部依赖</span>
+  </div>
+</footer>
+
+<div id="backdrop" class="backdrop" hidden></div>
+
+<aside id="drawer" class="drawer" role="dialog" aria-modal="true" aria-labelledby="d-name" aria-hidden="true"></aside>
+
+<section id="print-sheet" class="print-sheet" aria-hidden="true"></section>
+
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+<script src="data/woods.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
