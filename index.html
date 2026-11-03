@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>木谱 · 木材速查｜为写手与画手准备的 56 种木材</title>
-<meta name="description" content="56 种木材的色泽、硬度、密度、气味与用途速查。为原创角色写手与画手准备的木材资料库，附创作提示与常见误用。">
+<title>木谱 · 木材速查｜为写手与画手准备的 73 种木材</title>
+<meta name="description" content="73 种木材的色泽、硬度、密度、气味与用途速查。为原创角色写手与画手准备的木材资料库，附创作提示与常见误用。">
 <meta name="theme-color" content="#F7F2E9">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23211C17'/%3E%3Cpath d='M7 10h18M7 16h18M7 22h18' stroke='%23F7F2E9' stroke-width='1.6'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="styles.css">
@@ -31,9 +31,10 @@
 
 <main id="top">
   <section class="hero wrap">
+    <div class="hero-copy">
     <p class="eyebrow">Wood Atlas · 木材速查</p>
     <h1>木谱</h1>
-    <p class="lede"><span data-wood-count>56</span> 种木材的色泽、硬度、气味与脾气。<br>为角色挑一块木头，也为自己少查一次资料。</p>
+    <p class="lede"><span data-wood-count>73</span> 种木材的色泽、硬度、气味与脾气。<br>为角色挑一块木头，也为自己少查一次资料。</p>
 
     <div class="search">
       <svg class="search-icon" viewBox="0 0 24 24" width="17" height="17" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
@@ -49,6 +50,8 @@
       <button type="button" data-q="深褐">深褐</button>
       <button type="button" data-q="雕刻">雕刻</button>
     </div>
+    </div>
+    <aside class="hero-sample" id="hero-sample" aria-label="今日木样"></aside>
   </section>
 
   <div class="colorband" id="colorband" aria-hidden="true"></div>
@@ -71,6 +74,7 @@
       </div>
 
       <div id="grid" class="grid" aria-busy="true"></div>
+      <nav id="pager" class="pager" aria-label="分页" hidden></nav>
 
       <div id="empty" class="empty" hidden>
         <h3>没有找到匹配的木材</h3>
@@ -94,7 +98,10 @@
   </div>
   <div class="wrap footer-bottom">
     <span>木谱 · 为写手与画手做的木材速查</span>
-    <span><span data-wood-count>56</span> 种 · 纯静态 · 无外部依赖</span>
+    <span class="footer-brand" title="Simon Workshop">
+      <img class="footer-logo" src="simon-workshop.png" alt="" width="26" height="26">
+      <span>Simon Workshop<sup>™</sup></span>
+    </span>
   </div>
 </footer>
 

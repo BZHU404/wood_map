@@ -469,10 +469,13 @@
 
   /* ---------------------------------------------------------------- 状态 */
 
+  const PAGE_SIZE = 15;
+
   const state = {
     q: '',
     filters: { family: new Set(), feel: new Set(), density: new Set(), origin: new Set(), use: new Set(), price: new Set() },
-    current: null
+    current: null,
+    page: 1
   };
 
   const priceLabel = (p) => '¥'.repeat(p);
@@ -560,6 +563,7 @@
     const set = state.filters[key];
     if (set.has(value)) set.delete(value);
     else set.add(value);
+    state.page = 1;
     syncFilterUI();
     render();
   }
@@ -583,6 +587,7 @@
 
   function clearFilters() {
     Object.values(state.filters).forEach((s) => s.clear());
+    state.page = 1;
     syncFilterUI();
     render();
   }
@@ -590,6 +595,7 @@
   function resetAll() {
     Object.values(state.filters).forEach((s) => s.clear());
     state.q = '';
+    state.page = 1;
     const input = $('#search');
     if (input) input.value = '';
     syncFilterUI();
@@ -651,13 +657,18 @@
 
   function render() {
     const list = WOODS.filter(matches);
+    const totalPages = Math.max(1, Math.ceil(list.length / PAGE_SIZE));
+    state.page = Math.min(Math.max(1, state.page), totalPages);
+    const start = (state.page - 1) * PAGE_SIZE;
+    const pageList = list.slice(start, start + PAGE_SIZE);
+
     const grid = $('#grid');
     if (!gridBuilt) {
       grid.innerHTML = WOODS.map(cardHTML).join('');
       gridBuilt = true;
       grid.setAttribute('aria-busy', 'false');
     }
-    const visible = new Set(list.map((w) => w.id));
+    const visible = new Set(pageList.map((w) => w.id));
     $$('.card', grid).forEach((card) => {
       const link = card.firstElementChild;
       card.hidden = !visible.has(link.dataset.id);
@@ -665,6 +676,47 @@
     $('#empty').hidden = list.length > 0;
     $('#result-count').textContent = list.length;
     $('#result-total').textContent = WOODS.length;
+    renderPager(totalPages, list.length, start, pageList.length);
+  }
+
+  function pageNumbers(current, total) {
+    if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+    const out = [1];
+    const left = Math.max(2, current - 1);
+    const right = Math.min(total - 1, current + 1);
+    if (left > 2) out.push('…');
+    for (let i = left; i <= right; i++) out.push(i);
+    if (right < total - 1) out.push('…');
+    out.push(total);
+    return out;
+  }
+
+  function renderPager(totalPages, total, start, count) {
+    const pager = $('#pager');
+    if (!pager) return;
+    if (totalPages <= 1) {
+      pager.hidden = true;
+      pager.innerHTML = '';
+      return;
+    }
+    pager.hidden = false;
+    const nums = pageNumbers(state.page, totalPages);
+    pager.innerHTML =
+      '<p class="pager-info">第 ' + (start + 1) + '–' + (start + count) + ' 种 · 共 ' + total + ' 种</p>' +
+      '<div class="pager-nav">' +
+      '<button type="button" class="pager-arrow" data-page="' + (state.page - 1) + '"' +
+      (state.page <= 1 ? ' disabled' : '') + ' aria-label="上一页">←</button>' +
+      nums
+        .map((n) =>
+          n === '…'
+            ? '<span class="pager-gap" aria-hidden="true">…</span>'
+            : '<button type="button" class="pager-num' + (n === state.page ? ' is-current' : '') +
+              '" data-page="' + n + '"' + (n === state.page ? ' aria-current="page"' : '') + '>' + n + '</button>'
+        )
+        .join('') +
+      '<button type="button" class="pager-arrow" data-page="' + (state.page + 1) + '"' +
+      (state.page >= totalPages ? ' disabled' : '') + ' aria-label="下一页">→</button>' +
+      '</div>';
   }
 
   /* ---------------------------------------------------------------- 抽屉 */
@@ -831,7 +883,9 @@
       '<div class="ps-row"><h2>用途</h2><p>' + w.uses.map(esc).join('、') + '</p></div>' +
       '<div class="ps-row"><h2>创作提示</h2><p>' + esc(w.creative) + '</p></div>' +
       '<div class="ps-row"><h2>常见误用</h2><p>' + esc(w.mistake) + '</p></div>' +
-      '<div class="ps-foot"><span>数值为参考值 · 纹理为示意</span><span>木谱</span></div>' +
+      '<div class="ps-foot"><span>数值为参考值 · 纹理为示意</span>' +
+      '<span class="ps-brand"><img src="simon-workshop.png" alt="">' +
+      '<span>Simon Workshop<sup>™</sup></span></span></div>' +
       '</div>';
   }
 
@@ -871,6 +925,7 @@
     const search = $('#search');
     search.addEventListener('input', () => {
       state.q = search.value.trim().toLowerCase();
+      state.page = 1;
       render();
     });
 
@@ -883,10 +938,32 @@
     $('#clear-filters').addEventListener('click', clearFilters);
     $('#clear-empty').addEventListener('click', resetAll);
 
+    $('#pager').addEventListener('click', (e) => {
+      const btn = e.target.closest('button[data-page]');
+      if (!btn || btn.disabled) return;
+      const p = Number(btn.dataset.page);
+      if (!p || p === state.page) return;
+      state.page = p;
+      render();
+      const results = $('.results');
+      if (results) results.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+
+    const sample = $('#hero-sample');
+    if (sample) {
+      sample.addEventListener('click', (e) => {
+        const a = e.target.closest('.sample-card');
+        if (!a) return;
+        e.preventDefault();
+        openWood(a.dataset.id);
+      });
+    }
+
     $$('.search-hints button').forEach((btn) => {
       btn.addEventListener('click', () => {
         search.value = btn.dataset.q;
         state.q = btn.dataset.q.toLowerCase();
+        state.page = 1;
         render();
         search.focus();
       });
@@ -1009,6 +1086,29 @@
     if (scroller) scroller.scrollTop = 0;
   }
 
+  function renderHeroSample() {
+    const host = $('#hero-sample');
+    if (!host) return;
+    const d = new Date();
+    const key = d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate();
+    const w = WOODS[hashStr(key) % WOODS.length];
+    const idx = WOODS.indexOf(w) + 1;
+    const media = w.photo
+      ? '<img class="tex-img" src="' + esc(w.photo) + '" alt="' + esc(w.name) + ' 刨面">'
+      : woodTexture(w, { detail: true }) + '<span class="tex-grain" aria-hidden="true"></span>';
+    host.innerHTML =
+      '<a class="sample-card" href="#' + w.id + '" data-id="' + w.id + '">' +
+      '<span class="sample-tex">' + media + '</span>' +
+      '<span class="sample-body">' +
+      '<span class="sample-kicker">今日木样 · ' + String(idx).padStart(2, '0') + ' / ' + WOODS.length + '</span>' +
+      '<span class="sample-name">' + esc(w.name) + '</span>' +
+      '<span class="sample-en">' + esc(w.en) + '</span>' +
+      '<span class="sample-specs">' + (w.janka ? fmt(w.janka) + ' N' : w._feel) + ' · ' +
+      w.density.toFixed(2) + ' g/cm³ · ' + esc(w.origin[0]) + '</span>' +
+      '<span class="sample-cta">查看详情 <span aria-hidden="true">→</span></span>' +
+      '</span></a>';
+  }
+
   /* ---------------------------------------------------------------- 启动 */
 
   function init() {
@@ -1016,15 +1116,17 @@
     $$('[data-wood-count]').forEach((el) => {
       el.textContent = String(WOODS.length);
     });
+    renderHeroSample();
     $('#colorband').innerHTML = WOODS.map(
       (w) => '<span style="background:' + w.color.heart + '" title="' + esc(w.name) + '"></span>'
     ).join('');
     renderFilters();
     syncFilterUI();
+    const initial = byId.get(location.hash.slice(1));
+    if (initial) state.page = Math.floor(WOODS.indexOf(initial) / PAGE_SIZE) + 1;
     render();
     bind();
-    const id = location.hash.slice(1);
-    if (id && byId.has(id)) openWood(id, { fromHistory: true, silent: true });
+    if (initial) openWood(initial.id, { fromHistory: true, silent: true });
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
