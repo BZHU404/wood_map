@@ -110,6 +110,54 @@
 <script src="app.js"></script>
 </body>
 </html>
+    <section class="results">
+      <div class="results-bar">
+        <p class="count"><b id="result-count">0</b> <span class="slash">/</span> <span id="result-total">0</span> 种木材</p>
+        <button id="filter-toggle" class="filter-toggle" type="button" aria-expanded="false" aria-controls="filters">
+          筛选 <span id="filter-count" class="filter-count" hidden></span>
+        </button>
+      </div>
+
+      <div id="grid" class="grid" aria-busy="true"></div>
+
+      <div id="empty" class="empty" hidden>
+        <h3>没有找到匹配的木材</h3>
+        <p>试试减少筛选条件，或换一个关键词。</p>
+        <button id="clear-empty" class="text-btn" type="button">清除全部筛选</button>
+      </div>
+    </section>
+  </div>
+</main>
+
+<footer class="footer" id="about">
+  <div class="wrap footer-in">
+    <div>
+      <h3>关于数据</h3>
+      <p>硬度为詹卡硬度（Janka）参考值，单位牛顿；密度为气干密度，单位 g/cm³。数值随产地、含水率与生长条件浮动，页面标注「按密度与手感」的条目没有公认詹卡值，仅供创作参考，不作为采购依据。</p>
+    </div>
+    <div>
+      <h3>关于图像</h3>
+      <p>刨面图由程序依据每种木材的色泽与纹理特征生成，是示意而非实拍；它能保证颜色与纹理方向大致对应，但不能替代实物照片。若你有可商用的实拍图，可直接替换。</p>
+    </div>
+  </div>
+  <div class="wrap footer-bottom">
+    <span>木谱 · 为写手与画手做的木材速查</span>
+    <span><span data-wood-count>56</span> 种 · 纯静态 · 无外部依赖</span>
+  </div>
+</footer>
+
+<div id="backdrop" class="backdrop" hidden></div>
+
+<aside id="drawer" class="drawer" role="dialog" aria-modal="true" aria-labelledby="d-name" aria-hidden="true"></aside>
+
+<section id="print-sheet" class="print-sheet" aria-hidden="true"></section>
+
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+<script src="data/woods.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
 
     <div class="search">
       <svg class="search-icon" viewBox="0 0 24 24" width="17" height="17" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
