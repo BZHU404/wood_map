@@ -792,6 +792,9 @@
     const cs = w.color.subs || ['刨光后', '通常较浅', '见光数月'];
     const prot = w.protection || (w.cites ? 'CITES II' : '—');
     const protSub = w.protectionSub || (w.cites ? '国际贸易受管制' : '暂无国际管制');
+    const hardness = w.janka
+      ? '<b>' + fmt(w.janka) + ' N</b><span>詹卡硬度 · 参考</span>'
+      : '<b>' + w._feel + '</b><span>按密度与手感标注</span>';
     const stats = extinct
       ? '<div class="d-stats">' +
         '<div class="d-stat"><span>年代</span><b>' + esc(w.era) + '</b><span>已灭绝</span></div>' +
@@ -820,9 +823,6 @@
         '<div><dt>气味</dt><dd>' + esc(w.smell) + '</dd></div>' +
         '<div><dt>耐候</dt><dd>' + esc(w.durability) + '</dd></div>' +
         '</dl></section>';
-    const hardness = w.janka
-      ? '<b>' + fmt(w.janka) + ' N</b><span>詹卡硬度 · 参考</span>'
-      : '<b>' + w._feel + '</b><span>按密度与手感标注</span>';
     const similar = w.similar
       .map((id) => byId.get(id))
       .filter(Boolean)
