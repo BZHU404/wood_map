@@ -114,8 +114,9 @@
 
   WOODS.forEach((w) => {
     w._feel = feelOf(w);
-    w._density = densityBand(w.density);
+    w._density = w.density == null ? null : densityBand(w.density);
     w._family = colorFamily(w.color.heart);
+    w._kind = w.extinct ? '古植物' : '木材';
     w._search = [
       w.name,
       w.en,
@@ -178,6 +179,7 @@
 
     const spacing = detail ? 3.4 : 3.8;
     const fibrous = pattern === 'fibrous';
+    const fossil = pattern === 'fossil';
     const amp = pattern === 'wavy' ? 9 : pattern === 'cathedral' ? 3.6 : pattern === 'burl' ? 7 : fibrous ? 1.6 : 2.0;
     const freq = pattern === 'wavy' ? 0.01 : pattern === 'burl' ? 0.021 : 0.016;
     const phase = rnd() * Math.PI * 2;
@@ -208,7 +210,7 @@
 
     // 年轮：早材宽带 + 晚材细线
     const bands = [];
-    if (!fibrous && pattern !== 'burl') for (let y = -14; y < H + 16; y += 11 + rnd() * 4) {
+    if (!fibrous && !fossil && pattern !== 'burl') for (let y = -14; y < H + 16; y += 11 + rnd() * 4) {
       const dLight = grainPath(y, 1);
       const dDark = grainPath(y + 1.2, 1);
       bands.push(
@@ -222,7 +224,7 @@
     // 细纹
     const strokes = [];
     const lineCount = Math.ceil(H / spacing) + 8;
-    if (!fibrous) for (let i = -4; i < lineCount; i++) {
+    if (!fibrous && !fossil) for (let i = -4; i < lineCount; i++) {
       const y0 = i * spacing + rnd() * 1.4;
       const d = grainPath(y0, 0.92);
       const r = rnd();
@@ -313,6 +315,45 @@
           '<ellipse cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" rx="' + (r * 0.2).toFixed(1) + '" ry="' + (r * 0.12).toFixed(1) +
           '" fill="' + shade(base, -0.45) + '"/></g>';
       }
+    }
+
+    // 化石：古植物的叶片印痕与裂纹
+    if (fossil) {
+      for (let i = 0; i < 7; i++) {
+        const cx = 40 + rnd() * (W - 80);
+        const cy = 40 + rnd() * (H - 80);
+        const len = 18 + rnd() * 40;
+        const wid = 5 + rnd() * 9;
+        const rot = rnd() * 180;
+        const x1 = cx - len / 2;
+        const x2 = cx + len / 2;
+        extra += '<g transform="rotate(' + rot.toFixed(0) + ' ' + cx.toFixed(1) + ' ' + cy.toFixed(1) + ')" opacity="' +
+          (0.16 + rnd() * 0.2).toFixed(2) + '">' +
+          '<path d="M' + x1.toFixed(1) + ' ' + cy.toFixed(1) + ' Q' + cx.toFixed(1) + ' ' + (cy - wid).toFixed(1) +
+          ' ' + x2.toFixed(1) + ' ' + cy.toFixed(1) + ' Q' + cx.toFixed(1) + ' ' + (cy + wid).toFixed(1) +
+          ' ' + x1.toFixed(1) + ' ' + cy.toFixed(1) + 'Z" fill="none" stroke="' + lineLight + '" stroke-width="1.1"/>' +
+          '<path d="M' + x1.toFixed(1) + ' ' + cy.toFixed(1) + 'L' + x2.toFixed(1) + ' ' + cy.toFixed(1) +
+          '" stroke="' + lineLight + '" stroke-width="0.7" opacity="0.6"/></g>';
+      }
+      let cracks = '';
+      for (let i = 0; i < 20; i++) {
+        let px = rnd() * W;
+        let py = rnd() * H;
+        let d = 'M' + px.toFixed(1) + ' ' + py.toFixed(1);
+        for (let s2 = 0; s2 < 3; s2++) {
+          px += (rnd() - 0.35) * 30;
+          py += (rnd() - 0.5) * 14;
+          d += 'L' + px.toFixed(1) + ' ' + py.toFixed(1);
+        }
+        cracks += d;
+      }
+      extra += '<path d="' + cracks + '" fill="none" stroke="' + shade(base, -0.5) + '" stroke-width="0.8" opacity="0.4"/>';
+      let specks = '';
+      for (let i = 0; i < 90; i++) {
+        specks += '<circle cx="' + (rnd() * W).toFixed(1) + '" cy="' + (rnd() * H).toFixed(1) +
+          '" r="' + (0.4 + rnd() * 1.1).toFixed(1) + '" fill="' + lineLight + '" opacity="' + (0.1 + rnd() * 0.2).toFixed(2) + '"/>';
+      }
+      extra += specks;
     }
 
     // 深色条纹：橄榄、玫瑰木、柚木的带状花纹
@@ -473,7 +514,7 @@
 
   const state = {
     q: '',
-    filters: { family: new Set(), feel: new Set(), density: new Set(), origin: new Set(), use: new Set(), price: new Set() },
+    filters: { kind: new Set(), family: new Set(), feel: new Set(), density: new Set(), origin: new Set(), use: new Set(), price: new Set() },
     current: null,
     page: 1
   };
@@ -491,6 +532,7 @@
   const ORIGIN_ORDER = ['北美', '南美', '欧洲', '非洲', '东南亚', '南亚', '中国', '日本', '中美洲', '多产地'];
 
   const facets = [
+    { key: 'kind', label: '类别', items: ['木材', '古植物'] },
     {
       key: 'family',
       label: '色系',
@@ -615,6 +657,8 @@
         if (!w.uses.some((o) => set.has(o))) return false;
       } else if (key === 'price') {
         if (!set.has(String(w.price))) return false;
+      } else if (key === 'kind') {
+        if (!set.has(w._kind)) return false;
       } else if (key === 'family') {
         if (!set.has(w._family)) return false;
       } else if (key === 'feel') {
@@ -627,8 +671,16 @@
   }
 
   function cardHTML(w) {
+    const extinct = !!w.extinct;
     const hard = w.janka ? fmt(w.janka) + ' N' : w._feel;
     const cl = w.color.labels || ['新切心材', '边材', '氧化后'];
+    const specs = extinct
+      ? '<span><i>年代</i><b>' + esc(w.era) + '</b></span>' +
+        '<span><i>体型</i><b>' + esc(w.size) + '</b></span>' +
+        '<span><i>产地</i><b>' + esc(w.origin[0]) + '</b></span>'
+      : '<span><i>硬度</i><b>' + hard + '</b></span>' +
+        '<span><i>密度</i><b>' + w.density.toFixed(2) + '</b></span>' +
+        '<span><i>产地</i><b>' + esc(w.origin[0]) + '</b></span>';
     return (
       '<article class="card">' +
       '<a class="card-link" href="#' + w.id + '" data-id="' + w.id + '">' +
@@ -637,18 +689,14 @@
       '<div class="card-title"><h3>' + esc(w.name) + '</h3>' +
       '<span class="card-en">' + esc(w.en) + '</span></div>' +
       '<p class="card-sci">' + esc(w.sci) + '</p>' +
-      '<div class="card-specs">' +
-      '<span><i>硬度</i><b>' + hard + '</b></span>' +
-      '<span><i>密度</i><b>' + w.density.toFixed(2) + '</b></span>' +
-      '<span><i>产地</i><b>' + esc(w.origin[0]) + '</b></span>' +
-      '</div>' +
+      '<div class="card-specs">' + specs + '</div>' +
       '<div class="card-foot">' +
       '<span class="swatches">' +
       '<i style="background:' + w.color.heart + '" title="' + cl[0] + ' ' + hexLabel(w.color.heart) + '"></i>' +
       '<i style="background:' + w.color.sap + '" title="' + cl[1] + ' ' + hexLabel(w.color.sap) + '"></i>' +
       '<i style="background:' + w.color.aged + '" title="' + cl[2] + ' ' + hexLabel(w.color.aged) + '"></i>' +
       '</span>' +
-      '<span class="card-tag">' + esc(w.type) + ' · ' + esc(w.tagNote || priceLabel(w.price)) + '</span>' +
+      '<span class="card-tag">' + esc(w.type) + ' · ' + esc(w.tagNote || (extinct ? '已灭绝' : priceLabel(w.price))) + '</span>' +
       '</div></div></a></article>'
     );
   }
@@ -739,10 +787,39 @@
 
   function drawerHTML(w) {
     const idx = WOODS.indexOf(w) + 1;
+    const extinct = !!w.extinct;
     const cl = w.color.labels || ['新切心材', '边材', '氧化后'];
     const cs = w.color.subs || ['刨光后', '通常较浅', '见光数月'];
     const prot = w.protection || (w.cites ? 'CITES II' : '—');
     const protSub = w.protectionSub || (w.cites ? '国际贸易受管制' : '暂无国际管制');
+    const stats = extinct
+      ? '<div class="d-stats">' +
+        '<div class="d-stat"><span>年代</span><b>' + esc(w.era) + '</b><span>已灭绝</span></div>' +
+        '<div class="d-stat"><span>体型</span><b>' + esc(w.size) + '</b><span>复原推测</span></div>' +
+        '<div class="d-stat"><span>分类</span><b>' + esc(w.clade) + '</b><span>古植物</span></div>' +
+        '<div class="d-stat"><span>化石</span><b>' + esc(w.origin[0]) + '</b><span>主要产地</span></div>' +
+        '</div>'
+      : '<div class="d-stats">' +
+        '<div class="d-stat"><span>硬度</span>' + hardness + '</div>' +
+        '<div class="d-stat"><span>密度</span><b>' + w.density.toFixed(2) + ' g/cm³</b><span>' + DENSITY_WORD[w._density] + '</span></div>' +
+        '<div class="d-stat"><span>价格</span><b>' + priceLabel(w.price) + '</b><span>' +
+        ['入门', '常见', '偏高', '名贵'][w.price - 1] + '</span></div>' +
+        '<div class="d-stat"><span>保护</span><b>' + esc(prot) + '</b><span>' + esc(protSub) + '</span></div>' +
+        '</div>';
+    const traits = extinct
+      ? '<section class="d-sec"><h3>形态与保存</h3><dl class="d-list">' +
+        '<div><dt>形态</dt><dd>' + esc(w.grain) + '</dd></div>' +
+        '<div><dt>质地</dt><dd>' + esc(w.texture) + '</dd></div>' +
+        '<div><dt>生境</dt><dd>' + esc(w.habitat) + '</dd></div>' +
+        '<div><dt>保存</dt><dd>' + esc(w.work) + '</dd></div>' +
+        '</dl></section>'
+      : '<section class="d-sec"><h3>材性</h3><dl class="d-list">' +
+        '<div><dt>纹理</dt><dd>' + esc(w.grain) + '</dd></div>' +
+        '<div><dt>手感</dt><dd>' + esc(w.texture) + '</dd></div>' +
+        '<div><dt>加工</dt><dd>' + esc(w.work) + '</dd></div>' +
+        '<div><dt>气味</dt><dd>' + esc(w.smell) + '</dd></div>' +
+        '<div><dt>耐候</dt><dd>' + esc(w.durability) + '</dd></div>' +
+        '</dl></section>';
     const hardness = w.janka
       ? '<b>' + fmt(w.janka) + ' N</b><span>詹卡硬度 · 参考</span>'
       : '<b>' + w._feel + '</b><span>按密度与手感标注</span>';
@@ -766,7 +843,7 @@
       '</button></div>' +
       '<div class="drawer-scroll" data-scroll>' +
       '<figure class="d-figure">' + textureBlock(w, { detail: true }) +
-      '<figcaption>' + (w.photo ? '刨面实拍' + (w.photoCredit ? ' · ' + esc(w.photoCredit) : '') : '刨面图 · 程序生成示意') + '</figcaption></figure>' +
+      '<figcaption>' + (w.photo ? '刨面实拍' + (w.photoCredit ? ' · ' + esc(w.photoCredit) : '') : (extinct ? '化石复原示意 · 程序生成' : '刨面图 · 程序生成示意')) + '</figcaption></figure>' +
       '<header class="d-head">' +
       '<p class="d-kicker">' + esc(w.type) + ' · ' + esc(w.origin.join(' / ')) + '</p>' +
       '<h2 id="d-name">' + esc(w.name) + '</h2>' +
@@ -775,13 +852,7 @@
         ? '<p class="d-alias">别名 ' + w.aliases.map(esc).join(' · ') + '</p>'
         : '') +
       '</header>' +
-      '<div class="d-stats">' +
-      '<div class="d-stat"><span>硬度</span>' + hardness + '</div>' +
-      '<div class="d-stat"><span>密度</span><b>' + w.density.toFixed(2) + ' g/cm³</b><span>' + DENSITY_WORD[w._density] + '</span></div>' +
-      '<div class="d-stat"><span>价格</span><b>' + priceLabel(w.price) + '</b><span>' +
-      ['入门', '常见', '偏高', '名贵'][w.price - 1] + '</span></div>' +
-      '<div class="d-stat"><span>保护</span><b>' + esc(prot) + '</b><span>' + esc(protSub) + '</span></div>' +
-      '</div>' +
+      stats +
       '<section class="d-sec">' +
       '<h3>色泽 <span class="h3-sub">点击色块复制</span></h3>' +
       '<div class="d-colors">' +
@@ -791,27 +862,21 @@
       '</div>' +
       '<p class="d-note">' + esc(w.color.note) + '</p>' +
       '</section>' +
-      '<section class="d-sec"><h3>材性</h3><dl class="d-list">' +
-      '<div><dt>纹理</dt><dd>' + esc(w.grain) + '</dd></div>' +
-      '<div><dt>手感</dt><dd>' + esc(w.texture) + '</dd></div>' +
-      '<div><dt>加工</dt><dd>' + esc(w.work) + '</dd></div>' +
-      '<div><dt>气味</dt><dd>' + esc(w.smell) + '</dd></div>' +
-      '<div><dt>耐候</dt><dd>' + esc(w.durability) + '</dd></div>' +
-      '</dl></section>' +
+      traits +
       '<section class="d-sec"><h3>常见用途</h3><ul class="chips chips--static">' +
       w.uses.map((u) => '<li>' + esc(u) + '</li>').join('') +
       '</ul></section>' +
       '<section class="note-box note-box--creative"><h3>创作提示</h3><p>' + esc(w.creative) + '</p></section>' +
       '<section class="note-box note-box--warn"><h3>常见误用</h3><p>' + esc(w.mistake) + '</p></section>' +
       '<section class="d-sec"><h3>冷知识</h3><p class="d-text">' + esc(w.fact) + '</p></section>' +
-      '<section class="d-sec"><h3>相似木材</h3><div class="similar">' +
+      '<section class="d-sec"><h3>' + (extinct ? '相关物种' : '相似木材') + '</h3><div class="similar">' +
       (similar || '<p class="d-text">暂无</p>') +
       '</div></section>' +
       '<div class="d-actions">' +
       '<button type="button" class="btn btn--primary" data-print>打印设定卡</button>' +
       '<button type="button" class="btn btn--ghost" data-random>随机换一种</button>' +
       '</div>' +
-      '<p class="d-disclaimer">数值随产地、含水率与生长条件浮动，仅供创作参考。</p>' +
+      '<p class="d-disclaimer">' + (extinct ? '古植物的复原形态与年代为参考，具体分类以最新研究为准。' : '数值随产地、含水率与生长条件浮动，仅供创作参考。') + '</p>' +
       '</div>'
     );
   }
@@ -858,8 +923,22 @@
 
   function buildPrintSheet(w) {
     const idx = WOODS.indexOf(w) + 1;
+    const extinct = !!w.extinct;
     const cl = w.color.labels || ['新切心材', '边材', '氧化后'];
     const sheet = $('#print-sheet');
+    const specs = extinct
+      ? '<div class="ps-specs">' +
+        '<div><span>年代</span><b>' + esc(w.era) + '</b></div>' +
+        '<div><span>体型</span><b>' + esc(w.size) + '</b></div>' +
+        '<div><span>分类</span><b>' + esc(w.clade) + '</b></div>' +
+        '<div><span>产地</span><b>' + esc(w.origin.length > 2 ? w.origin[0] + ' 等' : w.origin.join('、')) + '</b></div>' +
+        '</div>'
+      : '<div class="ps-specs">' +
+        '<div><span>硬度</span><b>' + (w.janka ? fmt(w.janka) + ' N' : w._feel) + '</b></div>' +
+        '<div><span>密度</span><b>' + w.density.toFixed(2) + '</b></div>' +
+        '<div><span>类型</span><b>' + esc(w.type) + '</b></div>' +
+        '<div><span>产地</span><b>' + esc(w.origin.join(' / ')) + '</b></div>' +
+        '</div>';
     sheet.innerHTML =
       '<div class="ps">' +
       '<div class="ps-top"><span>木谱 · WOOD ATLAS</span><span>No. ' + String(idx).padStart(2, '0') + '</span></div>' +
@@ -868,12 +947,7 @@
       '<div class="ps-tex">' + (w.photo
         ? '<img src="' + esc(w.photo) + '" alt="' + esc(w.name) + ' 刨面">'
         : woodTexture(w, { detail: true })) + '</div>' +
-      '<div class="ps-specs">' +
-      '<div><span>硬度</span><b>' + (w.janka ? fmt(w.janka) + ' N' : w._feel) + '</b></div>' +
-      '<div><span>密度</span><b>' + w.density.toFixed(2) + '</b></div>' +
-      '<div><span>类型</span><b>' + esc(w.type) + '</b></div>' +
-      '<div><span>产地</span><b>' + esc(w.origin.join(' / ')) + '</b></div>' +
-      '</div>' +
+      specs +
       '<div class="ps-colors">' +
       '<div><i style="background:' + w.color.heart + '"></i><span>' + esc(cl[0]) + '</span><b>' + hexLabel(w.color.heart) + '</b></div>' +
       '<div><i style="background:' + w.color.sap + '"></i><span>' + esc(cl[1]) + '</span><b>' + hexLabel(w.color.sap) + '</b></div>' +
@@ -1093,6 +1167,10 @@
     const key = d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate();
     const w = WOODS[hashStr(key) % WOODS.length];
     const idx = WOODS.indexOf(w) + 1;
+    const extinct = !!w.extinct;
+    const specLine = extinct
+      ? esc(w.era) + ' · ' + esc(w.size) + ' · ' + esc(w.origin[0])
+      : (w.janka ? fmt(w.janka) + ' N' : w._feel) + ' · ' + w.density.toFixed(2) + ' g/cm³ · ' + esc(w.origin[0]);
     const media = w.photo
       ? '<img class="tex-img" src="' + esc(w.photo) + '" alt="' + esc(w.name) + ' 刨面">'
       : woodTexture(w, { detail: true }) + '<span class="tex-grain" aria-hidden="true"></span>';
@@ -1100,11 +1178,10 @@
       '<a class="sample-card" href="#' + w.id + '" data-id="' + w.id + '">' +
       '<span class="sample-tex">' + media + '</span>' +
       '<span class="sample-body">' +
-      '<span class="sample-kicker">今日木样 · ' + String(idx).padStart(2, '0') + ' / ' + WOODS.length + '</span>' +
+      '<span class="sample-kicker">' + (extinct ? '今日古植物' : '今日木样') + ' · ' + String(idx).padStart(2, '0') + ' / ' + WOODS.length + '</span>' +
       '<span class="sample-name">' + esc(w.name) + '</span>' +
       '<span class="sample-en">' + esc(w.en) + '</span>' +
-      '<span class="sample-specs">' + (w.janka ? fmt(w.janka) + ' N' : w._feel) + ' · ' +
-      w.density.toFixed(2) + ' g/cm³ · ' + esc(w.origin[0]) + '</span>' +
+      '<span class="sample-specs">' + specLine + '</span>' +
       '<span class="sample-cta">查看详情 <span aria-hidden="true">→</span></span>' +
       '</span></a>';
   }
