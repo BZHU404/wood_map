@@ -112,6 +112,118 @@
   const WOODS = (window.WOODS || []).slice();
   const byId = new Map(WOODS.map((w) => [w.id, w]));
 
+  const STORE_KEY = 'woodmap.box.v1';
+  const box = { ids: new Set(), notes: {} };
+  let sheetTimer = null;
+  let noteTimer = null;
+  let lastSheetFocus = null;
+
+  function loadBox() {
+    try {
+      const raw = localStorage.getItem(STORE_KEY);
+      if (!raw) return;
+      const data = JSON.parse(raw);
+      (data.ids || []).forEach((id) => {
+        if (byId.has(id)) box.ids.add(id);
+      });
+      if (data.notes && typeof data.notes === 'object') box.notes = data.notes;
+    } catch (e) {}
+  }
+
+  function persistBox() {
+    try {
+      localStorage.setItem(STORE_KEY, JSON.stringify({ ids: [...box.ids], notes: box.notes }));
+    } catch (e) {}
+  }
+
+  function syncBoxUI() {
+    const count = box.ids.size;
+    const badge = $('#box-count');
+    if (badge) {
+      badge.textContent = String(count);
+      badge.hidden = count === 0;
+    }
+    const total = $('#box-total');
+    if (total) total.textContent = String(count);
+    $$('.card-star').forEach((btn) => {
+      const on = box.ids.has(btn.dataset.star);
+      btn.classList.toggle('is-saved', on);
+      btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+      btn.title = on ? '取消收藏' : '收藏';
+    });
+    const saveBtn = $('[data-save]');
+    if (saveBtn && state.current) {
+      const on = box.ids.has(state.current.id);
+      saveBtn.textContent = on ? '★ 已在木盒' : '☆ 加入木盒';
+      saveBtn.classList.toggle('is-saved', on);
+    }
+  }
+
+  function toggleBox(id) {
+    if (box.ids.has(id)) {
+      box.ids.delete(id);
+      delete box.notes[id];
+      toast('已移出木盒');
+    } else {
+      box.ids.add(id);
+      toast('已加入木盒');
+    }
+    persistBox();
+    syncBoxUI();
+    if (state.view === 'box') render();
+  }
+
+  function setView(view) {
+    state.view = view;
+    state.page = 1;
+    render();
+    const results = $('.results');
+    if (results) results.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function exportBox() {
+    const items = WOODS.filter((w) => box.ids.has(w.id));
+    if (!items.length) {
+      toast('木盒还是空的');
+      return;
+    }
+    const lines = ['# 我的木盒', '', '共 ' + items.length + ' 种', ''];
+    items.forEach((w) => {
+      lines.push('## ' + w.name + ' ' + w.en);
+      lines.push('- 学名：' + w.sci);
+      if (w.extinct) {
+        lines.push('- 年代：' + w.era);
+        lines.push('- 体型：' + w.size);
+      } else {
+        lines.push('- 硬度：' + (w.janka ? fmt(w.janka) + ' N（詹卡）' : w._feel + '（手感）'));
+        lines.push('- 密度：' + w.density.toFixed(2) + ' g/cm³');
+      }
+      lines.push('- 产地：' + w.origin.join(' / '));
+      if (box.notes[w.id]) lines.push('- 笔记：' + box.notes[w.id]);
+      lines.push('');
+    });
+    const blob = new Blob([lines.join('\n')], { type: 'text/markdown;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'wood-box.md';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    toast('已导出 wood-box.md');
+  }
+
+  function clearBox() {
+    if (!box.ids.size) return;
+    if (!window.confirm('清空木盒和全部笔记？')) return;
+    box.ids.clear();
+    box.notes = {};
+    persistBox();
+    syncBoxUI();
+    render();
+    toast('木盒已清空');
+  }
+
   WOODS.forEach((w) => {
     w._feel = feelOf(w);
     w._density = w.density == null ? null : densityBand(w.density);
@@ -516,7 +628,8 @@
     q: '',
     filters: { kind: new Set(), family: new Set(), feel: new Set(), density: new Set(), origin: new Set(), use: new Set(), price: new Set() },
     current: null,
-    page: 1
+    page: 1,
+    view: 'library'
   };
 
   const priceLabel = (p) => '¥'.repeat(p);
@@ -647,6 +760,7 @@
   /* ---------------------------------------------------------------- 匹配与渲染 */
 
   function matches(w) {
+    if (state.view === 'box') return box.ids.has(w.id);
     if (state.q && !w._search.includes(state.q)) return false;
     for (const key in state.filters) {
       const set = state.filters[key];
@@ -672,7 +786,9 @@
 
   function cardHTML(w) {
     const extinct = !!w.extinct;
-    const hard = w.janka ? fmt(w.janka) + ' N' : w._feel;
+    const hard = w.janka
+      ? fmt(w.janka) + ' N<span class="spec-note">（詹卡）</span>'
+      : w._feel + '<span class="spec-note">（手感）</span>';
     const cl = w.color.labels || ['新切心材', '边材', '氧化后'];
     const specs = extinct
       ? '<span><i>年代</i><b>' + esc(w.era) + '</b></span>' +
@@ -697,7 +813,13 @@
       '<i style="background:' + w.color.aged + '" title="' + cl[2] + ' ' + hexLabel(w.color.aged) + '"></i>' +
       '</span>' +
       '<span class="card-tag">' + esc(w.type) + ' · ' + esc(w.tagNote || (extinct ? '已灭绝' : priceLabel(w.price))) + '</span>' +
-      '</div></div></a></article>'
+      '</div></div></a>' +
+      '<button type="button" class="card-star' + (box.ids.has(w.id) ? ' is-saved' : '') + '" data-star="' + w.id +
+      '" aria-label="' + (box.ids.has(w.id) ? '取消收藏 ' : '收藏 ') + esc(w.name) + '" title="' +
+      (box.ids.has(w.id) ? '取消收藏' : '收藏') + '" aria-pressed="' + (box.ids.has(w.id) ? 'true' : 'false') + '">' +
+      '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round">' +
+      '<path d="M12 3.6l2.6 5.3 5.8.9-4.2 4.1 1 5.8L12 17l-5.2 2.7 1-5.8-4.2-4.1 5.8-.9z"/></svg></button>' +
+      '</article>'
     );
   }
 
@@ -721,7 +843,18 @@
       const link = card.firstElementChild;
       card.hidden = !visible.has(link.dataset.id);
     });
-    $('#empty').hidden = list.length > 0;
+    const boxView = state.view === 'box';
+    document.body.classList.toggle('view-box', boxView);
+    const boxBar = $('#box-bar');
+    if (boxBar) boxBar.hidden = !boxView;
+    const boxEmpty = boxView && list.length === 0;
+    $('#empty').hidden = boxView || list.length > 0;
+    const boxEmptyEl = $('#box-empty');
+    if (boxEmptyEl) boxEmptyEl.hidden = !boxEmpty;
+    const boxExport = $('#box-export');
+    const boxClear = $('#box-clear');
+    if (boxExport) boxExport.disabled = boxEmpty;
+    if (boxClear) boxClear.disabled = boxEmpty;
     $('#result-count').textContent = list.length;
     $('#result-total').textContent = WOODS.length;
     renderPager(totalPages, list.length, start, pageList.length);
@@ -793,8 +926,8 @@
     const prot = w.protection || (w.cites ? 'CITES II' : '—');
     const protSub = w.protectionSub || (w.cites ? '国际贸易受管制' : '暂无国际管制');
     const hardness = w.janka
-      ? '<b>' + fmt(w.janka) + ' N</b><span>詹卡硬度 · 参考</span>'
-      : '<b>' + w._feel + '</b><span>按密度与手感标注</span>';
+      ? '<b>' + fmt(w.janka) + ' N</b><button type="button" class="stat-sub term-link" data-term="詹卡硬度">詹卡硬度 · 越大越硬</button>'
+      : '<b>' + w._feel + '</b><button type="button" class="stat-sub term-link" data-term="詹卡硬度">无公认詹卡值 · 按手感</button>';
     const stats = extinct
       ? '<div class="d-stats">' +
         '<div class="d-stat"><span>年代</span><b>' + esc(w.era) + '</b><span>已灭绝</span></div>' +
@@ -872,8 +1005,13 @@
       '<section class="d-sec"><h3>' + (extinct ? '相关物种' : '相似木材') + '</h3><div class="similar">' +
       (similar || '<p class="d-text">暂无</p>') +
       '</div></section>' +
+      '<section class="d-sec d-notes"><h3>我的笔记</h3>' +
+      '<textarea id="note-input" placeholder="记一句：这本小说里给谁用、什么场景……">' + esc(box.notes[w.id] || '') + '</textarea>' +
+      '<p class="note-hint">笔记只保存在这台设备的浏览器里，不会上传。</p></section>' +
       '<div class="d-actions">' +
       '<button type="button" class="btn btn--primary" data-print>打印设定卡</button>' +
+      '<button type="button" class="btn btn--ghost" data-save' + (box.ids.has(w.id) ? ' is-saved' : '') + '>' +
+      (box.ids.has(w.id) ? '★ 已在木盒' : '☆ 加入木盒') + '</button>' +
       '<button type="button" class="btn btn--ghost" data-random>随机换一种</button>' +
       '</div>' +
       '<p class="d-disclaimer">' + (extinct ? '古植物的复原形态与年代为参考，具体分类以最新研究为准。' : '数值随产地、含水率与生长条件浮动，仅供创作参考。') + '</p>' +
@@ -919,6 +1057,122 @@
     if (lastFocus && document.contains(lastFocus)) lastFocus.focus({ preventScroll: true });
   }
 
+  /* ---------------------------------------------------------------- 浮层：辨析 / 术语 */
+
+  function pairWoodHTML(w) {
+    return (
+      '<a class="pair-wood" href="#' + w.id + '" data-pair="' + w.id + '">' +
+      '<span class="pair-tex">' + woodTexture(w, {}) + '</span>' +
+      '<b>' + esc(w.name) + '</b><i>' + esc(w.en) + '</i></a>'
+    );
+  }
+
+  function lookalikesHTML() {
+    const pairs = (window.LOOKALIKES || [])
+      .map((p) => {
+        const a = byId.get(p.a);
+        const b = byId.get(p.b);
+        if (!a || !b) return '';
+        return (
+          '<article class="pair">' +
+          '<h3>' + esc(p.title) + '</h3>' +
+          '<div class="pair-head">' + pairWoodHTML(a) + '<span class="pair-vs">vs</span>' + pairWoodHTML(b) + '</div>' +
+          '<div class="pair-table">' +
+          p.rows
+            .map((r) => '<div class="pair-row"><span>' + esc(r[0]) + '</span><span>' + esc(r[1]) + '</span><span>' + esc(r[2]) + '</span></div>')
+            .join('') +
+          '</div>' +
+          '<p class="pair-conclusion">' + esc(p.conclusion) + '</p>' +
+          '</article>'
+        );
+      })
+      .join('');
+    return (
+      '<div class="sheet-head"><div><h2 class="sheet-title" id="sheet-title">易混淆辨析</h2>' +
+      '<p class="sheet-sub">最常被搞混的几组木材，买料和查资料前先看这里。</p></div>' +
+      '<button type="button" class="icon-btn" data-sheet-close aria-label="关闭">' +
+      '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M5 5l14 14M19 5L5 19" stroke="currentColor" stroke-width="1.4" fill="none" stroke-linecap="round"/></svg>' +
+      '</button></div><div class="pairs">' + pairs + '</div>'
+    );
+  }
+
+  function glossaryHTML() {
+    const items = (window.GLOSSARY || [])
+      .map(
+        (g) =>
+          '<div class="gloss-item" data-term="' + esc(g.term) + '"><dt>' + esc(g.term) +
+          '<span class="gloss-en">' + esc(g.en) + '</span></dt><dd>' + esc(g.def) + '</dd></div>'
+      )
+      .join('');
+    return (
+      '<div class="sheet-head"><div><h2 class="sheet-title" id="sheet-title">术语词典</h2>' +
+      '<p class="sheet-sub">看懂木材资料里的那些词。</p></div>' +
+      '<button type="button" class="icon-btn" data-sheet-close aria-label="关闭">' +
+      '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M5 5l14 14M19 5L5 19" stroke="currentColor" stroke-width="1.4" fill="none" stroke-linecap="round"/></svg>' +
+      '</button></div>' +
+      '<div class="gloss-search"><input id="gloss-search" type="search" placeholder="搜术语，例如：侵填体、径切、詹卡" autocomplete="off"></div>' +
+      '<dl class="gloss-list">' + items + '</dl>'
+    );
+  }
+
+  function filterGlossary(q) {
+    const s = (q || '').trim().toLowerCase();
+    $$('.gloss-item').forEach((el) => {
+      el.hidden = Boolean(s) && !el.textContent.toLowerCase().includes(s);
+    });
+  }
+
+  function openSheet(kind, term) {
+    const sheet = $('#sheet');
+    const sheetBackdrop = $('#sheet-backdrop');
+    if (!sheet || !sheetBackdrop) return;
+    lastSheetFocus = document.activeElement;
+    clearTimeout(sheetTimer);
+    sheet.innerHTML = kind === 'glossary' ? glossaryHTML() : lookalikesHTML();
+    sheet.hidden = false;
+    sheet.scrollTop = 0;
+    sheetBackdrop.hidden = false;
+    requestAnimationFrame(() => {
+      sheet.classList.add('is-open');
+      sheetBackdrop.classList.add('is-open');
+    });
+    document.body.classList.add('is-locked');
+    const closeBtn = $('[data-sheet-close]', sheet);
+    if (closeBtn) closeBtn.focus({ preventScroll: true });
+    if (kind === 'glossary') {
+      const input = $('#gloss-search', sheet);
+      if (input) {
+        input.addEventListener('input', () => filterGlossary(input.value));
+        if (term) {
+          input.value = term;
+          filterGlossary(term);
+          const target = $$('.gloss-item', sheet).find((el) => el.dataset.term === term);
+          if (target) {
+            target.classList.add('is-target');
+            setTimeout(() => target.scrollIntoView({ block: 'center' }), 80);
+          }
+        }
+      }
+    }
+  }
+
+  function closeSheet() {
+    const sheet = $('#sheet');
+    const sheetBackdrop = $('#sheet-backdrop');
+    if (!sheet || !sheetBackdrop || sheet.hidden) return;
+    sheet.classList.remove('is-open');
+    sheetBackdrop.classList.remove('is-open');
+    clearTimeout(sheetTimer);
+    sheetTimer = setTimeout(() => {
+      if (!sheet.classList.contains('is-open')) {
+        sheet.hidden = true;
+        sheetBackdrop.hidden = true;
+      }
+    }, 280);
+    if (!drawer.classList.contains('is-open')) document.body.classList.remove('is-locked');
+    if (lastSheetFocus && document.contains(lastSheetFocus)) lastSheetFocus.focus({ preventScroll: true });
+  }
+
   /* ---------------------------------------------------------------- 打印 */
 
   function buildPrintSheet(w) {
@@ -934,7 +1188,7 @@
         '<div><span>产地</span><b>' + esc(w.origin.length > 2 ? w.origin[0] + ' 等' : w.origin.join('、')) + '</b></div>' +
         '</div>'
       : '<div class="ps-specs">' +
-        '<div><span>硬度</span><b>' + (w.janka ? fmt(w.janka) + ' N' : w._feel) + '</b></div>' +
+        '<div><span>硬度' + (w.janka ? '（詹卡）' : '（手感）') + '</span><b>' + (w.janka ? fmt(w.janka) + ' N' : w._feel) + '</b></div>' +
         '<div><span>密度</span><b>' + w.density.toFixed(2) + '</b></div>' +
         '<div><span>类型</span><b>' + esc(w.type) + '</b></div>' +
         '<div><span>产地</span><b>' + esc(w.origin.join(' / ')) + '</b></div>' +
@@ -997,7 +1251,10 @@
 
   function bind() {
     const search = $('#search');
+    const sheet = $('#sheet');
+    const sheetBackdrop = $('#sheet-backdrop');
     search.addEventListener('input', () => {
+      if (state.view === 'box') state.view = 'library';
       state.q = search.value.trim().toLowerCase();
       state.page = 1;
       render();
@@ -1037,6 +1294,7 @@
       btn.addEventListener('click', () => {
         search.value = btn.dataset.q;
         state.q = btn.dataset.q.toLowerCase();
+        state.view = 'library';
         state.page = 1;
         render();
         search.focus();
@@ -1044,6 +1302,12 @@
     });
 
     $('#grid').addEventListener('click', (e) => {
+      const star = e.target.closest('[data-star]');
+      if (star) {
+        e.preventDefault();
+        toggleBox(star.dataset.star);
+        return;
+      }
       const link = e.target.closest('.card-link');
       if (!link) return;
       e.preventDefault();
@@ -1067,6 +1331,15 @@
         randomWood();
         return;
       }
+      if (e.target.closest('[data-save]')) {
+        if (state.current) toggleBox(state.current.id);
+        return;
+      }
+      const term = e.target.closest('[data-term]');
+      if (term) {
+        openSheet('glossary', term.dataset.term);
+        return;
+      }
       const sw = e.target.closest('.swatch-card');
       if (sw) {
         const hex = sw.dataset.hex.toUpperCase();
@@ -1085,8 +1358,53 @@
 
     backdrop.addEventListener('click', () => closeDrawer());
 
+    $('#drawer').addEventListener('input', (e) => {
+      if (e.target.id !== 'note-input' || !state.current) return;
+      const id = state.current.id;
+      const val = e.target.value;
+      clearTimeout(noteTimer);
+      noteTimer = setTimeout(() => {
+        if (val.trim()) {
+          box.notes[id] = val.trim();
+          if (!box.ids.has(id)) box.ids.add(id);
+        } else {
+          delete box.notes[id];
+        }
+        persistBox();
+        syncBoxUI();
+      }, 350);
+    });
+
+    $('#box-btn').addEventListener('click', () => setView(state.view === 'box' ? 'library' : 'box'));
+    $('#lookalike-btn').addEventListener('click', () => openSheet('lookalikes'));
+    $('#glossary-btn').addEventListener('click', () => openSheet('glossary'));
+    $('#box-export').addEventListener('click', exportBox);
+    $('#box-clear').addEventListener('click', clearBox);
+    $('#box-back').addEventListener('click', () => setView('library'));
+    $('#box-empty-back').addEventListener('click', () => setView('library'));
+
+    if (sheet) {
+      sheet.addEventListener('click', (e) => {
+        if (e.target.closest('[data-sheet-close]')) {
+          closeSheet();
+          return;
+        }
+        const pair = e.target.closest('[data-pair]');
+        if (pair) {
+          e.preventDefault();
+          closeSheet();
+          openWood(pair.dataset.pair);
+        }
+      });
+    }
+    if (sheetBackdrop) sheetBackdrop.addEventListener('click', closeSheet);
+
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
+        if (sheet && !sheet.hidden) {
+          closeSheet();
+          return;
+        }
         if (drawer.classList.contains('is-open')) closeDrawer();
         else if (document.activeElement === search) {
           search.value = '';
@@ -1095,9 +1413,25 @@
           search.blur();
         }
       }
-      if (e.key === '/' && document.activeElement !== search && !/^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName)) {
+      if (e.key === '/' && sheet && sheet.hidden && document.activeElement !== search && !/^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName)) {
         e.preventDefault();
         search.focus();
+      }
+      if (e.key === 'Tab' && sheet && !sheet.hidden) {
+        const f = $$('a[href], button:not([disabled]), input, [tabindex]:not([tabindex="-1"])', sheet).filter(
+          (el) => el.offsetParent !== null
+        );
+        if (!f.length) return;
+        const first = f[0];
+        const last = f[f.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+        return;
       }
       if (e.key === 'Tab' && drawer.classList.contains('is-open')) {
         const f = $$('a[href], button:not([disabled]), input, [tabindex]:not([tabindex="-1"])', drawer).filter(
@@ -1170,7 +1504,7 @@
     const extinct = !!w.extinct;
     const specLine = extinct
       ? esc(w.era) + ' · ' + esc(w.size) + ' · ' + esc(w.origin[0])
-      : (w.janka ? fmt(w.janka) + ' N' : w._feel) + ' · ' + w.density.toFixed(2) + ' g/cm³ · ' + esc(w.origin[0]);
+      : (w.janka ? fmt(w.janka) + ' N（詹卡）' : w._feel + '（手感）') + ' · ' + w.density.toFixed(2) + ' g/cm³ · ' + esc(w.origin[0]);
     const media = w.photo
       ? '<img class="tex-img" src="' + esc(w.photo) + '" alt="' + esc(w.name) + ' 刨面">'
       : woodTexture(w, { detail: true }) + '<span class="tex-grain" aria-hidden="true"></span>';
@@ -1197,12 +1531,14 @@
     $('#colorband').innerHTML = WOODS.map(
       (w) => '<span style="background:' + w.color.heart + '" title="' + esc(w.name) + '"></span>'
     ).join('');
+    loadBox();
     renderFilters();
     syncFilterUI();
     const initial = byId.get(location.hash.slice(1));
     if (initial) state.page = Math.floor(WOODS.indexOf(initial) / PAGE_SIZE) + 1;
     render();
     bind();
+    syncBoxUI();
     if (initial) openWood(initial.id, { fromHistory: true, silent: true });
   }
 
